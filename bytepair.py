@@ -1,7 +1,6 @@
 import re 
 import collections
 
-
 class encoder(object):
     def __init__(self):
         self.vocab = None
