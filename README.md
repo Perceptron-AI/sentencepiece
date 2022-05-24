@@ -1,6 +1,7 @@
-# SentencePiece: A simple and language independent subword tokenizer and detokenizer for Neural Text Processing
+# SentencePiece + Neural Boundary Entropy + GPT-2: Pytorch 
 
-This is python-pytorch implementation of SentencePiece
+This is pytorch implementation of training GPT-2 with SentencePiece + Neural Boundary Entropy. 
+
 
 
 ## Citation
