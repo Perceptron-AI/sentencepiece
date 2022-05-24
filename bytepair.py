@@ -2,20 +2,22 @@ import re
 import collections
 
 
-class bytepair(object):
+class encoder(object):
+    def __init__(self):
+        self.vocab = None
+        self.tokens = None
+        self.merges = None
 
     def get_vocab(self, filename):
         vocab = collections.defaultdict(int)
         with open(filename, 'r', encoding='utf-8') as f:
             for line in f:
-                words = line.split()
+                words = line.strip().split()
                 for word in words:
-                    vocab[' '.join(list(word)) + ' </w>'] += 1
-                break
+                    vocab[''.join(list(word)) + ' </w>'] += 1
         return vocab
-
         
-    def bigram((self, vocab):
+    def bigram_count(self, vocab):
         pairs = collections.defaultdict(int)
         for word, freq in vocab.items():
             w = word.split()
@@ -24,7 +26,7 @@ class bytepair(object):
         return pairs
 
 
-    def merge_vocab((self, pair, v_in):
+    def merge_vocab(self, pair, v_in):
         v_out = {}
         bigram = re.escape(' '.join(pair))
         p = re.compile(r'(?<!\S)' + bigram + r'(?!\S)')
@@ -34,22 +36,7 @@ class bytepair(object):
             v_out[w_out] = v_in[word]
         return v_out, (bigram, bytepair)
 
-    def find_merge(self, vocab, tokens, num_merge):
-        merges = []
-        for i in range(num_merges):
-            pairs = bigram(vocab)
-            if not pairs:
-                break
-            best_pairs = max(pairs, key=pairs.get)
-            best_count = pairs[best_pairs]
-            vocabs, (bigram, bytepair) = self.merge_vocab(best_pairs, vocab)
-            merges.append((r'(?<!\S)' + bigram + r'(?!\S)', bytepair))
-            tokens[bytepair] = best_pairs
-        return vocab, tokens, merges
-
-    
-    @property
-    def get_tokens((vocab):
+    def get_tokens(self, vocab):
         tokens = collections.defaultdict(int)
         for word, freq in vocab.items():
             word_tokens = word.split()
@@ -57,28 +44,28 @@ class bytepair(object):
                 tokens[token] += freq
         return tokens
 
+    def find_merge(self, vocab, num_merges):
+        merges = []
+        
+        for i in range(num_merges):
+            pairs = self.bigram_count(vocab)
+            if not pairs:
+                break
+            best_pairs = max(pairs, key=pairs.get)
+            best_count = pairs[best_pairs]
+            vocab, (bigram, bytepair) = self.merge_vocab(best_pairs, vocab)
+            merges.append((r'(?<!\S)' + bigram + r'(?!\S)', bytepair))
+            tokens =  self.get_tokens(vocab)
+        return vocab, merges, tokens
 
-# vocab = get_vocab('data/text.txt')
-# pairs = get_stats(vocab)
-# best = max(pairs, key=pairs.get)
+    def fit_train(self, filename, num_merges):
+        vocab = self.get_vocab(filename)
+        self.vocab, self.merges, self.tokens = self.find_merge(vocab, num_merges)
 
-# print('==========')
-# print('Tokens Before BPE')
-# tokens = get_tokens(vocab)
-# print('Tokens: {}'.format(tokens))
-# print('Number of tokens: {}'.format(len(tokens)))
-# print('==========')
 
-# num_merges = 1
-# for i in range(num_merges):
-#     pairs = get_stats(vocab)
-#     if not pairs:
-#         break
-#     best = max(pairs, key=pairs.get)
-#     vocab = merge_vocab(best, vocab)
-#     print('Iter: {}'.format(i))
-#     print('Best pair: {}'.format(best))
-#     tokens = get_tokens(vocab)
-#     print('Tokens: {}'.format(tokens))
-#     print('Number of tokens: {}'.format(len(tokens)))
-#     print('==========')
+# Test
+# if __name__ == "__main__":
+#     e = encoder()
+#     e.fit_train('data/text.txt', 2)
+#     print(e.vocab)
+
