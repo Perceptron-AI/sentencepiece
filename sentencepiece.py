@@ -1,10 +1,14 @@
+# Source: https://github.com/Jmkernes/SentencePiece-from-scratch/blob/main/sentence_piece.py
+
 import re
 import os
 import collections
 import numpy as np
 from scipy.special import digamma
 
-class Tree:
+# To efficiently determine the next possible words
+# We need a Trie data structure
+class Trie:
     def __init__(self):
         self.root = {}
 
@@ -12,7 +16,7 @@ class Tree:
         node = self.root
         for ch in word:
             if ch not in node:
-                node[ch] = node
+                node[ch] = {}
             node = node[ch]
         node['<END>'] = value
 
@@ -30,32 +34,32 @@ class Tree:
         node = self.root
         for ch in word:
             if ch not in node:
-                raise ValueError("word not in tree")
+                raise ValueError("word not in trie")
             node = node[ch]
         if '<END>' not in node:
-            raise ValueError("word not in tree")
+            raise ValueError("word not in trie")
         node['<END>'] = value
 
 
 class SentencePieceTrainer:
     def __init__(self):
-        self.tree = None
+        self.trie = None
         self.maxlen = None
         self.vocab_size = None
 
-    def _initialize_tree(self, tokens):
-        tree = Tree()
+    def _initialize_trie(self, tokens):
+        trie = Trie()
         norm = sum(list(tokens.values()))
         logsum = digamma(norm)
 
         maxlen = 0
         for tok, val in tokens.items():
-            tree.add(tok, digamma(val)-logsum)
+            trie.add(tok, digamma(val)-logsum)
             maxlen = max(maxlen, len(tok))
 
-        return tree, maxlen
+        return trie, maxlen
 
-    def forward_step(self, text, tree):
+    def forward_step(self, text, trie):
         N = len(text)
 
         # d[i] contains the maximum log_prob of any tokenization
@@ -74,7 +78,7 @@ class SentencePieceTrainer:
             for j in range(max(i-self.maxlen, 0), i):
 
                 final_token = text[j:i]
-                final_value = tree.get_value(final_token)
+                final_value = trie.get_value(final_token)
 
                 # if the current ending word has a higher log-probability,
                 # save that value and store the word (i.e. # chars to backtrack)
@@ -102,7 +106,7 @@ class SentencePieceTrainer:
         tokenization = list(reversed(tokenization))
         return tokenization
 
-    def E_step(self, tokenization, tree):
+    def E_step(self, tokenization, trie):
         # get the new token counts based on updated tokenization
         counts = collections.Counter(tokenization)
         norm = sum(list(counts.values()))
@@ -115,24 +119,24 @@ class SentencePieceTrainer:
             counts[k] = digamma(v)-logsum
 
         for k, v in counts.items():
-            tree.set_value(k, v)
-        return tree
+            trie.set_value(k, v)
+        return trie
 
-    def M_step(self, text, tree):
-        loss, p = self.forward_step(text, tree)
+    def M_step(self, text, trie):
+        loss, p = self.forward_step(text, trie)
         tokenization = self.backward_step(text, p)
         return tokenization, loss
 
-    def EM_step(self, text, tokenization, tree):
-        tree = self.E_step(tokenization, tree)
-        tokenization, loss = self.M_step(text, tree)
-        return loss, tokenization, tree
+    def EM_step(self, text, tokenization, trie):
+        trie = self.E_step(tokenization, trie)
+        tokenization, loss = self.M_step(text, trie)
+        return loss, tokenization, trie
 
     def EM_round(self, text, tokens, delta=0.01, max_iter=10):
-        tokenization, old_loss = self.M_step(text, self.tree)
+        tokenization, old_loss = self.M_step(text, self.trie)
         for step in range(max_iter):
             print(f"EM iter {step}: ", end='')
-            loss, tokenization, tree = self.EM_step(text, tokenization, self.tree)
+            loss, tokenization, trie = self.EM_step(text, tokenization, self.trie)
             print(f"Loss={loss:.2f}")
             if abs(old_loss-loss) < delta:
                 break
@@ -154,7 +158,7 @@ class SentencePieceTrainer:
                 return True
             tok = sorted_tokens[i][0]
             if tok not in characters:
-                self.tree.set_value(tok, 0) # we need to delete it from the tree (that sticks around)
+                self.trie.set_value(tok, 0) # we need to delete it from the trie (that sticks around)
                 tokens.pop(tok) # also need to delete from tokens, so the next round doesn't see it
                 n_trim -= 1
                 N -= 1
@@ -162,12 +166,12 @@ class SentencePieceTrainer:
             raise ValueError('Could not reduce tokens further. Please increase vocab size')
         return False
 
-    def fit(self, text, tokens, characters, vocab_size, delta=0.01, max_iter=5, max_rounds=5):
+    def fit(self, text, tokens, characters, vocab_size=10, delta=0.01, max_iter=50, max_rounds=50):
         """ To turn off pruning, just set max_rounds=1 """
         text = re.sub(' ', '_', text)
         if vocab_size > len(tokens):
             raise ValueError(f"Vocab size is larger than the availble number of tokens {len(tokens)}.")
-        self.tree, self.maxlen = self._initialize_tree(tokens)
+        self.trie, self.maxlen = self._initialize_trie(tokens)
         for i in range(1, max_rounds+1):
             print(f"--- Round {i}. Vocab size: {len(tokens)} ---")
             self.EM_round(text, tokens, delta, max_iter)
@@ -177,7 +181,7 @@ class SentencePieceTrainer:
 
 
 
-    def generalized_forward_step(self, text, tree, nbest_size=1):
+    def generalized_forward_step(self, text, trie, nbest_size=1):
         N = len(text)
         d = [-np.inf]*(N+1)
         p = [None]*(N+1)
@@ -187,7 +191,7 @@ class SentencePieceTrainer:
             p_queue = []
             for j in range(max(i-self.maxlen, 0), i):
                 final_token = text[j:i]
-                final_value = tree.get_value(final_token)
+                final_value = trie.get_value(final_token)
                 if final_value:
                     curr_d = d[j]+final_value
                     curr_p = len(final_token)
@@ -212,27 +216,28 @@ class SentencePieceTrainer:
 
     def tokenize(self, text, nbest_size=1):
         text = re.sub(' ', '_', text)
-        if self.tree is None:
+        if self.trie is None:
             raise ValueError("Trainer has not yet been fit. Cannot tokenize.")
-        p = self.generalized_forward_step(text, self.tree, nbest_size)
+        p = self.generalized_forward_step(text, self.trie, nbest_size)
         tokenization = self.generalized_backward_step(text, p)
         return tokenization
 
 
 if __name__ == "__main__":
     def load_text():
-        with open('data/text.txt', 'r') as file:
+        with open('data/good_taste.txt', 'r') as file:
             text = file.read()
             text = text.replace('\n', ' ')
             text = re.sub(' +', ' ', text)
         return text
-    from bytepair import encoder
-    bpe = encoder()
+    from bytepair import BytePairEncoder
+    bpe = BytePairEncoder()
     spm = SentencePieceTrainer()
-    num_merges = 100
+    num_merges = 1000
 
     print("Fitting the byte pair encoder")
-    bpe.fit_train('data/text.txt', 2)
+    text = load_text()
+    bpe.fit(text, num_merges)
     tokens = bpe.tokens
     tokens['_'] = tokens[' ']
     tokens.pop(' ')
@@ -240,7 +245,5 @@ if __name__ == "__main__":
     characters = bpe.characters
     characters.discard(' ')
     characters.add('_')
-    print("Finished.")
-
-    text = load_text()
     spm.fit(text=text, tokens=tokens, characters=characters, vocab_size=100)
+    print(spm.tokenize(text))

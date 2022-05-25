@@ -1,78 +1,65 @@
-import re 
+import re
 import collections
 
-class encoder(object):
+class BytePairEncoder:
     def __init__(self):
-        self.vocab = None
-        self.tokens = None
         self.merges = None
+        self.characters = None
+        self.tokens = None
+        self.vocab = None
 
-    def get_vocab(self, filename):
-        vocab = collections.defaultdict(int)
-        with open(filename, 'r', encoding='utf-8') as file:
-            # text = file.read()
-            # # text = text.replace('\n', ' ')
-            # # text = re.sub(' +', ' ', text)
-            for line in file:
-                words = line.split()
-                for word in words:
-                    vocab[''.join(list(word)) + '</w>'] += 1
-        return vocab
-        
-    def bigram_count(self, vocab):
-        pairs = collections.defaultdict(int)
-        for word, freq in vocab.items():
-            w = word.split()
-            for i in range(len(w)-1):
-                pairs[w[i],w[i+1]] += freq
+    def format_word(self, text, space_token='_'):
+        return ' '.join(list(text)) + ' ' + space_token
+
+    def initialize_vocab(self, text):
+        text = re.sub('\s+', ' ', text)
+        all_words = text.split()
+        vocab = {}
+        for word in all_words:
+            word = self.format_word(word)
+            vocab[word] = vocab.get(word, 0) + 1
+        tokens = collections.Counter(text)
+        return vocab, tokens
+
+    def get_bigram_counts(self, vocab):
+        pairs = {}
+        for word, count in vocab.items():
+            symbols = word.split()
+            for i in range(len(symbols)-1):
+                pair = (symbols[i], symbols[i+1])
+                pairs[pair] = pairs.get(pair, 0) + count
         return pairs
 
-
-    def merge_vocab(self, pair, v_in):
-        v_out = {}
+    def merge_vocab(self, pair, vocab_in):
+        vocab_out = {}
         bigram = re.escape(' '.join(pair))
         p = re.compile(r'(?<!\S)' + bigram + r'(?!\S)')
         bytepair = ''.join(pair)
-        for word in v_in:
-            w_out = p.sub(''.join(pair), word)
-            v_out[w_out] = v_in[word]
-        return v_out, (bigram, bytepair)
+        for word in vocab_in:
+            w_out = p.sub(bytepair, word)
+            vocab_out[w_out] = vocab_in[word]
+        return vocab_out, (bigram, bytepair)
 
-    def get_tokens(self, vocab):
-        tokens = collections.defaultdict(int)
-        for word, freq in vocab.items():
-            word_tokens = word.split()
-            for token in word_tokens:
-                tokens[token] += freq
-        return tokens
-
-    def find_merge(self, vocab, num_merges):
+    def find_merges(self, vocab, tokens, num_merges):
         merges = []
-        
         for i in range(num_merges):
-            pairs = self.bigram_count(vocab)
-            if not pairs:
-                break
-            best_pairs = max(pairs, key=pairs.get)
-            best_count = pairs[best_pairs]
-            vocab, (bigram, bytepair) = self.merge_vocab(best_pairs, vocab)
+            pairs = self.get_bigram_counts(vocab)
+            best_pair = max(pairs, key=pairs.get)
+            best_count = pairs[best_pair]
+            vocab, (bigram, bytepair) = self.merge_vocab(best_pair, vocab)
             merges.append((r'(?<!\S)' + bigram + r'(?!\S)', bytepair))
-            tokens =  self.get_tokens(vocab)
-        return vocab, merges, tokens
+            tokens[bytepair] = best_count
+        return vocab, tokens, merges
 
-    def fit_train(self, filename, num_merges):
-        vocab = self.get_vocab(filename)
-        # self.characters = set(self.tokens)
-        self.vocab, self.merges, self.tokens = self.find_merge(vocab, num_merges)
+    def fit(self, text, num_merges):
+        vocab, tokens = self.initialize_vocab(text)
+        self.characters = set(tokens.keys())
+        self.vocab, self.tokens, self.merges = self.find_merges(vocab, tokens, num_merges)
 
     @property
-    def characters(self):
-        t = self.tokens
-        return set(t.keys())
+    def get_tokens(self):
+        return self.tokens
 
-# Test
-if __name__ == "__main__":
-    e = encoder()
-    # e.fit_train('data/text.txt', 1000)
-    print('Tokens', e.get_vocab('data/text.txt'))
-
+    @property
+    def get_characters(self):
+        return self.characters
