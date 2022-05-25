@@ -9,11 +9,14 @@ class encoder(object):
 
     def get_vocab(self, filename):
         vocab = collections.defaultdict(int)
-        with open(filename, 'r', encoding='utf-8') as f:
-            for line in f:
-                words = line.strip().split()
+        with open(filename, 'r', encoding='utf-8') as file:
+            # text = file.read()
+            # # text = text.replace('\n', ' ')
+            # # text = re.sub(' +', ' ', text)
+            for line in file:
+                words = line.split()
                 for word in words:
-                    vocab[''.join(list(word)) + ' </w>'] += 1
+                    vocab[''.join(list(word)) + '</w>'] += 1
         return vocab
         
     def bigram_count(self, vocab):
@@ -59,12 +62,17 @@ class encoder(object):
 
     def fit_train(self, filename, num_merges):
         vocab = self.get_vocab(filename)
+        # self.characters = set(self.tokens)
         self.vocab, self.merges, self.tokens = self.find_merge(vocab, num_merges)
 
+    @property
+    def characters(self):
+        t = self.tokens
+        return set(t.keys())
 
 # Test
-# if __name__ == "__main__":
-#     e = encoder()
-#     e.fit_train('data/text.txt', 2)
-#     print(e.vocab)
+if __name__ == "__main__":
+    e = encoder()
+    # e.fit_train('data/text.txt', 1000)
+    print('Tokens', e.get_vocab('data/text.txt'))
 

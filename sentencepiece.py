@@ -167,7 +167,7 @@ class SentencePieceTrainer:
         text = re.sub(' ', '_', text)
         if vocab_size > len(tokens):
             raise ValueError(f"Vocab size is larger than the availble number of tokens {len(tokens)}.")
-        self.tree, self.maxlen = self._initialize_trie(tokens)
+        self.tree, self.maxlen = self._initialize_tree(tokens)
         for i in range(1, max_rounds+1):
             print(f"--- Round {i}. Vocab size: {len(tokens)} ---")
             self.EM_round(text, tokens, delta, max_iter)
@@ -217,3 +217,30 @@ class SentencePieceTrainer:
         p = self.generalized_forward_step(text, self.tree, nbest_size)
         tokenization = self.generalized_backward_step(text, p)
         return tokenization
+
+
+if __name__ == "__main__":
+    def load_text():
+        with open('data/text.txt', 'r') as file:
+            text = file.read()
+            text = text.replace('\n', ' ')
+            text = re.sub(' +', ' ', text)
+        return text
+    from bytepair import encoder
+    bpe = encoder()
+    spm = SentencePieceTrainer()
+    num_merges = 100
+
+    print("Fitting the byte pair encoder")
+    bpe.fit_train('data/text.txt', 2)
+    tokens = bpe.tokens
+    tokens['_'] = tokens[' ']
+    tokens.pop(' ')
+
+    characters = bpe.characters
+    characters.discard(' ')
+    characters.add('_')
+    print("Finished.")
+
+    text = load_text()
+    spm.fit(text=text, tokens=tokens, characters=characters, vocab_size=100)
