@@ -4,9 +4,7 @@ import collections
 import numpy as np
 from scipy.special import digamma
 
-# To efficiently determine the next possible words
-# We need a Trie data structure
-class Trie:
+class Tree:
     def __init__(self):
         self.root = {}
 
@@ -14,7 +12,7 @@ class Trie:
         node = self.root
         for ch in word:
             if ch not in node:
-                node[ch] = {}
+                node[ch] = node
             node = node[ch]
         node['<END>'] = value
 
@@ -32,32 +30,32 @@ class Trie:
         node = self.root
         for ch in word:
             if ch not in node:
-                raise ValueError("word not in trie")
+                raise ValueError("word not in tree")
             node = node[ch]
         if '<END>' not in node:
-            raise ValueError("word not in trie")
+            raise ValueError("word not in tree")
         node['<END>'] = value
 
 
 class SentencePieceTrainer:
     def __init__(self):
-        self.trie = None
+        self.tree = None
         self.maxlen = None
         self.vocab_size = None
 
-    def _initialize_trie(self, tokens):
-        trie = Trie()
+    def _initialize_tree(self, tokens):
+        tree = Tree()
         norm = sum(list(tokens.values()))
         logsum = digamma(norm)
 
         maxlen = 0
         for tok, val in tokens.items():
-            trie.add(tok, digamma(val)-logsum)
+            tree.add(tok, digamma(val)-logsum)
             maxlen = max(maxlen, len(tok))
 
-        return trie, maxlen
+        return tree, maxlen
 
-    def forward_step(self, text, trie):
+    def forward_step(self, text, tree):
         N = len(text)
 
         # d[i] contains the maximum log_prob of any tokenization
@@ -76,7 +74,7 @@ class SentencePieceTrainer:
             for j in range(max(i-self.maxlen, 0), i):
 
                 final_token = text[j:i]
-                final_value = trie.get_value(final_token)
+                final_value = tree.get_value(final_token)
 
                 # if the current ending word has a higher log-probability,
                 # save that value and store the word (i.e. # chars to backtrack)
@@ -104,7 +102,7 @@ class SentencePieceTrainer:
         tokenization = list(reversed(tokenization))
         return tokenization
 
-    def E_step(self, tokenization, trie):
+    def E_step(self, tokenization, tree):
         # get the new token counts based on updated tokenization
         counts = collections.Counter(tokenization)
         norm = sum(list(counts.values()))
@@ -117,24 +115,24 @@ class SentencePieceTrainer:
             counts[k] = digamma(v)-logsum
 
         for k, v in counts.items():
-            trie.set_value(k, v)
-        return trie
+            tree.set_value(k, v)
+        return tree
 
-    def M_step(self, text, trie):
-        loss, p = self.forward_step(text, trie)
+    def M_step(self, text, tree):
+        loss, p = self.forward_step(text, tree)
         tokenization = self.backward_step(text, p)
         return tokenization, loss
 
-    def EM_step(self, text, tokenization, trie):
-        trie = self.E_step(tokenization, trie)
-        tokenization, loss = self.M_step(text, trie)
-        return loss, tokenization, trie
+    def EM_step(self, text, tokenization, tree):
+        tree = self.E_step(tokenization, tree)
+        tokenization, loss = self.M_step(text, tree)
+        return loss, tokenization, tree
 
     def EM_round(self, text, tokens, delta=0.01, max_iter=10):
-        tokenization, old_loss = self.M_step(text, self.trie)
+        tokenization, old_loss = self.M_step(text, self.tree)
         for step in range(max_iter):
             print(f"EM iter {step}: ", end='')
-            loss, tokenization, trie = self.EM_step(text, tokenization, self.trie)
+            loss, tokenization, tree = self.EM_step(text, tokenization, self.tree)
             print(f"Loss={loss:.2f}")
             if abs(old_loss-loss) < delta:
                 break
@@ -156,7 +154,7 @@ class SentencePieceTrainer:
                 return True
             tok = sorted_tokens[i][0]
             if tok not in characters:
-                self.trie.set_value(tok, 0) # we need to delete it from the trie (that sticks around)
+                self.tree.set_value(tok, 0) # we need to delete it from the tree (that sticks around)
                 tokens.pop(tok) # also need to delete from tokens, so the next round doesn't see it
                 n_trim -= 1
                 N -= 1
@@ -169,7 +167,7 @@ class SentencePieceTrainer:
         text = re.sub(' ', '_', text)
         if vocab_size > len(tokens):
             raise ValueError(f"Vocab size is larger than the availble number of tokens {len(tokens)}.")
-        self.trie, self.maxlen = self._initialize_trie(tokens)
+        self.tree, self.maxlen = self._initialize_trie(tokens)
         for i in range(1, max_rounds+1):
             print(f"--- Round {i}. Vocab size: {len(tokens)} ---")
             self.EM_round(text, tokens, delta, max_iter)
@@ -179,7 +177,7 @@ class SentencePieceTrainer:
 
 
 
-    def generalized_forward_step(self, text, trie, nbest_size=1):
+    def generalized_forward_step(self, text, tree, nbest_size=1):
         N = len(text)
         d = [-np.inf]*(N+1)
         p = [None]*(N+1)
@@ -189,7 +187,7 @@ class SentencePieceTrainer:
             p_queue = []
             for j in range(max(i-self.maxlen, 0), i):
                 final_token = text[j:i]
-                final_value = trie.get_value(final_token)
+                final_value = tree.get_value(final_token)
                 if final_value:
                     curr_d = d[j]+final_value
                     curr_p = len(final_token)
@@ -214,8 +212,8 @@ class SentencePieceTrainer:
 
     def tokenize(self, text, nbest_size=1):
         text = re.sub(' ', '_', text)
-        if self.trie is None:
+        if self.tree is None:
             raise ValueError("Trainer has not yet been fit. Cannot tokenize.")
-        p = self.generalized_forward_step(text, self.trie, nbest_size)
+        p = self.generalized_forward_step(text, self.tree, nbest_size)
         tokenization = self.generalized_backward_step(text, p)
         return tokenization
