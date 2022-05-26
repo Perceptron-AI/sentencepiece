@@ -1,6 +1,6 @@
 import numpy as np 
-import sentencepiece 
-import collection 
+import sentencepiece as spm
+import collections 
 from tqdm import tqdm
 from pathlib import Path
 
@@ -12,7 +12,7 @@ END_OF_TEXT = '<endoftext>'
 WORD_START = '▁'
 
 
-def SentencePiece_train(PATH):
+def trainer(PATH):
     sp_text = Path(PATH)
     if sp_text.exists():
         print(f'Using existing "{sp_text}", remove and re-run if it is stale.')
@@ -21,5 +21,8 @@ def SentencePiece_train(PATH):
                                     model_type='bpe', max_sentence_length=16384, bos_id=-1,
                                     eos_id=-1, unk_piece='UNK')
 
-
+if __name__ == '__main__':
+    print('s')
+    trainer̀('data/text.txt')
+    print('done')
    
