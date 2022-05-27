@@ -21,8 +21,39 @@ def trainer(PATH):
                                     model_type='bpe', max_sentence_length=16384, bos_id=-1,
                                     eos_id=-1, unk_piece='UNK')
 
+    sp_model = spm.SentencePieceProcessor()
+    sp_model = spm.SentencePieceProcessor()
+    assert sp_model.load('m.model')
+    eot = sp_model.PieceToId(END_OF_TEXT)
+    eol = sp_model.PieceToId(END_OF_LINE)
+    dtype = np.uint16 if len(sp_model) < 2**16 - 1 else np.uint32
+
+    encoded_splits = collections.defaultdict(list)
+    encoded = []
+
+    def append_and_clear(x):
+        encoded_splits.append(np.array(x, dtype=dtype))
+        x.clear()
+
+    with open(sp_text, 'r') as f:
+        for line in f:
+            encoded.extend(sp_model.EncodeAsIds(line))
+            encoded.append(eol)
+            if len(encoded) > 100000:
+                append_and_clear(encoded)
+            encoded.append(eot)
+        append_and_clear(encoded)
+
+    output_root = Path(output_path)
+
+    split_path = output_root / 'output.npy'
+    print(f'Saving encoded split to {split_path}')
+    # encoded = np.concatenate(encoded_splits[split])
+    assert encoded.dtype == dtype
+    np.save(split_path, encoded)
+
 if __name__ == '__main__':
     print('s')
-    trainer̀('data/text.txt')
+    trainer('data/text.txt')
     print('done')
    
