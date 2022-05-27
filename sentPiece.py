@@ -12,7 +12,7 @@ END_OF_TEXT = '<endoftext>'
 WORD_START = '▁'
 
 
-def trainer(PATH):
+def trainer(PATH, output_path='.'):
     sp_text = Path(PATH)
     if sp_text.exists():
         print(f'Using existing "{sp_text}", remove and re-run if it is stale.')
@@ -32,7 +32,7 @@ def trainer(PATH):
     encoded = []
 
     def append_and_clear(x):
-        encoded_splits.append(np.array(x, dtype=dtype))
+        encoded_splits['train'].append(np.array(x, dtype=dtype))
         x.clear()
 
     with open(sp_text, 'r') as f:
@@ -48,7 +48,7 @@ def trainer(PATH):
 
     split_path = output_root / 'output.npy'
     print(f'Saving encoded split to {split_path}')
-    # encoded = np.concatenate(encoded_splits[split])
+    encoded = np.concatenate(encoded_splits['train'])
     assert encoded.dtype == dtype
     np.save(split_path, encoded)
 
