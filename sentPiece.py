@@ -4,6 +4,9 @@ import collections
 from tqdm import tqdm
 from pathlib import Path
 from glob import glob
+import os
+
+from torch.utils.data import Dataset
 
 UNK = '<unk>'
 END_OF_LINE = '<endofline>'
@@ -73,41 +76,35 @@ class data_preprocessing(object):
         assert encoded.dtype == dtype
         np.save(split_path, encoded)
 
-``
-# class GPT2Dataset(Dataset):
-#     def __init__(self, corpus_path, max_len, n_tokens, dataset_plk_path="data/gpt2_dataset.npy"):
+class dataset_formatting(Dataset):
+    def __init__(self, input_path:Path, max_len, n_tokens, dataset_plk_path="data/gpt2_dataset.npy"):
+        self.max_len = max_len
+        if os.path.isfile(dataset_plk_path):
+            self.corpus = np.load(dataset_plk_path, allow_pickle=True)
+        else:
+            processor = TextProcessor(n_tokens, input_path, output_path='.')
+            print("Encoding texts...")
+            encoded = processor.save_as_npy()
+            npy = glob('*.npy')
+            self.corpus = np.load(npy, allow_pickle=True)
 
-#         self.max_len = max_len
-#         if os.path.isfile(dataset_plk_path):
-#             self.corpus = np.load(dataset_plk_path, allow_pickle=True)
-#         else:
-#             self.corpus = []
-#             processor = TextProcessor(n_tokens, corpus_path)
-#             print("Encoding texts...")
-#             with open(corpus_path, 'r') as file:
-#                 for line in tqdm(file):
-#                     encoded = processor.encode(line)
-#                     self.corpus.append(np.array(encoded, dtype=np.int16))
-#             gc.collect()
-#             np.save(dataset_plk_path, self.corpus)
+    def __getitem__(self, index):
+        if index > self.__len__():
+            print(index)
+            raise IndexError()
 
-#     def __getitem__(self, index):
-#         if index > self.__len__():
-#             print(index)
-#             raise IndexError()
+        encoded = self.corpus[index]
+        offset = random.randint(0, max(0, len(encoded) - self.max_len))
+        encoded = encoded[offset:self.max_len + offset]
 
-#         encoded = self.corpus[index]
-#         offset = random.randint(0, max(0, len(encoded) - self.max_len))
-#         encoded = encoded[offset:self.max_len + offset]
+        return torch.LongTensor(encoded)
 
-#         return torch.LongTensor(encoded)
-
-#     def __len__(self):
-#         return len(self.corpus)
+    def __len__(self):
+        return len(self.corpus)
 
 
-# def collate(batch):
-#     return pad_sequence(batch, batch_first=True, padding_value=0)
+def collate(batch):
+    return pad_sequence(batch, batch_first=True, padding_value=0)
 
 
 if __name__ == "__main__":
