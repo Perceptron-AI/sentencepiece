@@ -1,5 +1,10 @@
-import numpy as np 
 import sentencepiece as spm
+import sentencepiece_pb2
+import numpy as np 
+
+import torch
+from torch.utils.data import Dataset
+
 import collections 
 from tqdm import tqdm
 from pathlib import Path
@@ -7,7 +12,9 @@ from glob import glob
 import os
 import random
 
-from torch.utils.data import Dataset
+
+
+
 
 UNK = '<unk>'
 END_OF_LINE = '<endofline>'
@@ -39,6 +46,16 @@ class data_preprocessing(object):
 
         self.sp = spm.SentencePieceProcessor()
         self.sp.Load(self.prefix+".model")
+    
+    def offset(self, sentence):
+        spt = sentencepiece_pb2.SentencePieceText()
+        spt.ParseFromString(self.sp.encode_as_serialized_proto(sentence))
+        offsets = []
+        tokens = []
+        for piece in spt.pieces:
+            tokens.append(piece.id)
+            offsets.append((piece.begin, piece.end))
+        return tokens, offsets
 
     def encoder(self, text):
         ids = self.sp.EncodeAsIds(text)
@@ -94,7 +111,7 @@ class dataset_formatting(Dataset):
         if os.path.isfile(dataset_plk_path):
             self.corpus = np.load(dataset_plk_path, allow_pickle=True)
         else:
-            processor = data_preprocessing(sub_dim,
+            self.processor = data_preprocessing(sub_dim,
                                         training_file,
                                         output_path='.',
                                         prefix="subword",
@@ -125,7 +142,8 @@ def collate(batch):
 
 
 if __name__ == "__main__":
-    formatted = dataset_formatting(sub_dim=10, training_file='data/text.txt', output_path='.')
-    print(formatted.__getitem__(1))
-    # process = data_preprocessing(10, 'data/text.txt', output_path='.')
-    # process.save_as_npy()
+    # formatted = dataset_formatting(sub_dim=10, training_file='data/text.txt', output_path='.')
+    # print(formatted.offset('hi'))
+    process = data_preprocessing(10, 'data/text.txt', output_path='.')
+    process.save_as_npy()
+    print(`(process.offset('When all I see is the battle')))
