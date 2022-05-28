@@ -5,6 +5,7 @@ from tqdm import tqdm
 from pathlib import Path
 from glob import glob
 import os
+import random
 
 from torch.utils.data import Dataset
 
@@ -77,30 +78,46 @@ class data_preprocessing(object):
         np.save(split_path, encoded)
 
 class dataset_formatting(Dataset):
-    def __init__(self, input_path:Path, max_len, n_tokens, dataset_plk_path="data/gpt2_dataset.npy"):
+    def __init__(self,
+            sub_dim,
+            training_file:Path,
+            output_path:Path,
+            dataset_plk_path='.',
+            prefix="subword",
+            model_type="bpe",
+            max_sentence_length=100000,
+            vocab_size=10000,
+            max_len=10000
+            ):
+
         self.max_len = max_len
         if os.path.isfile(dataset_plk_path):
             self.corpus = np.load(dataset_plk_path, allow_pickle=True)
         else:
-            processor = TextProcessor(n_tokens, input_path, output_path='.')
+            processor = data_preprocessing(sub_dim,
+                                        training_file,
+                                        output_path='.',
+                                        prefix="subword",
+                                        model_type="bpe",
+                                        max_sentence_length=100000,
+                                        vocab_size=10000
+                                        )
             print("Encoding texts...")
-            encoded = processor.save_as_npy()
-            npy = glob('*.npy')
-            self.corpus = np.load(npy, allow_pickle=True)
+            processor.save_as_npy()
+            source = processor.prefix + ".npy"
+            self.corpus = np.load(source, allow_pickle=True)
 
     def __getitem__(self, index):
         if index > self.__len__():
             print(index)
             raise IndexError()
-
         encoded = self.corpus[index]
-        offset = random.randint(0, max(0, len(encoded) - self.max_len))
+        offset = random.randint(0, max(0, len(self.corpus) - self.max_len))
         encoded = encoded[offset:self.max_len + offset]
-
         return torch.LongTensor(encoded)
 
     def __len__(self):
-        return len(self.corpus)
+       return len(self.corpus)
 
 
 def collate(batch):
@@ -108,5 +125,7 @@ def collate(batch):
 
 
 if __name__ == "__main__":
-    process = data_preprocessing(10, 'data/text.txt', output_path='.')
-    process.save_as_npy()
+    formatted = dataset_formatting(sub_dim=10, training_file='data/text.txt', output_path='.')
+    print(formatted.__getitem__(1))
+    # process = data_preprocessing(10, 'data/text.txt', output_path='.')
+    # process.save_as_npy()
