@@ -146,4 +146,4 @@ if __name__ == "__main__":
     # print(formatted.offset('hi'))
     process = data_preprocessing(10, 'data/text.txt', output_path='.')
     process.save_as_npy()
-    print(`(process.offset('When all I see is the battle')))
+    print(torch.LongTensor(process.encoder('lion')).unsqueeze(0).to('mps'))
