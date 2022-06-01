@@ -129,8 +129,7 @@ class dataset_formatting(Dataset):
             print(index)
             raise IndexError()
         encoded = self.corpus[index]
-        offset = random.randint(0, max(0, len(self.corpus) - self.max_len))
-        encoded = encoded[offset:self.max_len + offset]
+        offset = self.processor.offset
         return torch.LongTensor(encoded)
 
     def __len__(self):
@@ -146,4 +145,4 @@ if __name__ == "__main__":
     # print(formatted.offset('hi'))
     process = data_preprocessing(10, 'data/text.txt', output_path='.')
     process.save_as_npy()
-    print(torch.LongTensor(process.encoder('lion')).unsqueeze(0).to('mps'))
+    print(torch.LongTensor(process.encoder('the lion and the lamb')).unsqueeze(0).to('mps'))
