@@ -1,6 +1,6 @@
 # SentencePiece + Neural Boundary Entropy + GPT-2: Pytorch 
 
-This is pytorch implementation of training GPT-2 with SentencePiece w/ offset + Neural Boundary Entropy. 
+This is Pytorch implementation of training GPT-2 with SentencePiece w/ offset + Neural Boundary Entropy. 
 
 
 
