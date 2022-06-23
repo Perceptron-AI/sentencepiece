@@ -2,8 +2,6 @@
 
 This is Pytorch implementation of training GPT-2 with SentencePiece w/ offset + Neural Boundary Entropy. 
 
-
-
 ## Citation
 
 ```bibtex
